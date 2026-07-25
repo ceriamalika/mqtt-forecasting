@@ -38,7 +38,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 FILE_DATA = os.path.join(
     BASE_DIR,
-    "sensor_data.csv"
+    "sensor_data.xlsx"
 )
 
 FILE_FORECAST = os.path.join(
