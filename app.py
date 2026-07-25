@@ -41,7 +41,7 @@ FILE_DATA = os.path.join(
     "sensor_data.xlsx"
 )
 
-FILE_DATA = os.path.join(
+FILE_SENSOR_DATA = os.path.join(
     BASE_DIR,
     "sensor_data_forecasting.xlsx"
 )
@@ -68,10 +68,7 @@ def load_data():
     data = pd.read_excel(FILE_DATA)
 
     sensor_forecasat = pd.read_excel(FILE_DATA, engine="openpyxl")
-    sensor_forecast = pd.read_excel(
-    FILE_SENSOR_FORECAST,
-    engine="openpyxl"
-    )
+
     
     sensor_forecast.columns = (
     sensor_forecast.columns
