@@ -4,7 +4,6 @@ import plotly.graph_objects as go
 import os
 from groq import Groq
 
-
 # ============================================================
 # KONFIGURASI HALAMAN
 # ============================================================
@@ -15,7 +14,6 @@ st.set_page_config(
     layout="wide"
 )
 
-
 # ============================================================
 # JUDUL DASHBOARD
 # ============================================================
@@ -23,12 +21,11 @@ st.set_page_config(
 st.title("📊 Dashboard Monitoring dan Forecasting Sensor IoT")
 
 st.write(
-    "Dashboard ini menampilkan data monitoring sensor suhu dan kelembaban, "
-    "hasil forecasting 6 jam ke depan menggunakan ARIMA, "
-    "evaluasi model, serta analisis dan rekomendasi berbasis "
+    "Dashboard ini menampilkan data monitoring sensor suhu dan "
+    "kelembaban, hasil forecasting 6 jam ke depan menggunakan "
+    "ARIMA, evaluasi model, serta analisis menggunakan "
     "Large Language Model (LLM) Groq."
 )
-
 
 # ============================================================
 # LOKASI FILE
@@ -51,7 +48,6 @@ FILE_EVALUASI = os.path.join(
     "hasil_evaluasi_model.xlsx"
 )
 
-
 # ============================================================
 # MEMBACA DATA
 # ============================================================
@@ -59,172 +55,168 @@ FILE_EVALUASI = os.path.join(
 @st.cache_data
 def load_data():
 
-    data = pd.read_excel(FILE_DATA)
+    # ----------------------------
+    # DATA SENSOR MQTT
+    # ----------------------------
 
-    forecast = pd.read_excel(FILE_FORECAST)
+    data = pd.read_excel(
+        FILE_DATA,
+        engine="openpyxl"
+    )
 
-    evaluasi = pd.read_excel(FILE_EVALUASI)
+    data.columns = (
+        data.columns
+        .str.strip()
+        .str.lower()
+    )
 
-    data["timestamp"] = pd.to_datetime(
-        data["timestamp"]
+    # ----------------------------
+    # JIKA FORMAT MQTT
+    # id | timestamp | topic | value
+    # ----------------------------
+
+    if (
+        "topic" in data.columns
+        and
+        "value" in data.columns
+    ):
+
+        data["timestamp"] = pd.to_datetime(
+            data["timestamp"],
+            errors="coerce",
+            dayfirst=True
+        )
+
+        data["value"] = pd.to_numeric(
+            data["value"],
+            errors="coerce"
+        )
+
+        data["jenis"] = (
+            data["topic"]
+            .astype(str)
+            .str.lower()
+            .str.split("/")
+            .str[-1]
+        )
+
+        data = (
+            data
+            .pivot_table(
+                index="timestamp",
+                columns="jenis",
+                values="value",
+                aggfunc="mean"
+            )
+            .reset_index()
+        )
+
+        data.columns.name = None
+
+    # ----------------------------
+    # SAMAKAN NAMA KOLOM
+    # ----------------------------
+
+    rename_dict = {}
+
+    for c in data.columns:
+
+        cl = c.lower()
+
+        if "temp" in cl:
+            rename_dict[c] = "suhu"
+
+        elif "suhu" in cl:
+            rename_dict[c] = "suhu"
+
+        elif "humid" in cl:
+            rename_dict[c] = "kelembaban"
+
+        elif "kelembaban" in cl:
+            rename_dict[c] = "kelembaban"
+
+        elif "time" in cl:
+            rename_dict[c] = "timestamp"
+
+    data = data.rename(
+        columns=rename_dict
+    )
+
+    # ----------------------------
+    # CEK KOLOM WAJIB
+    # ----------------------------
+
+    kolom_wajib = [
+        "timestamp",
+        "suhu",
+        "kelembaban"
+    ]
+
+    kurang = [
+        k
+        for k in kolom_wajib
+        if k not in data.columns
+    ]
+
+    if len(kurang) > 0:
+
+        st.error(
+            "Kolom berikut tidak ditemukan:\n\n"
+            + ", ".join(kurang)
+        )
+
+        st.write(
+            "Kolom yang tersedia:"
+        )
+
+        st.write(
+            list(data.columns)
+        )
+
+        st.stop()
+
+    # ----------------------------
+    # URUTKAN DATA
+    # ----------------------------
+
+    data = (
+        data
+        .sort_values(
+            "timestamp"
+        )
+        .reset_index(
+            drop=True
+        )
+    )
+
+    # ----------------------------
+    # FORECAST
+    # ----------------------------
+
+    forecast = pd.read_excel(
+        FILE_FORECAST,
+        engine="openpyxl"
     )
 
     forecast["timestamp"] = pd.to_datetime(
-        forecast["timestamp"]
+        forecast["timestamp"],
+        errors="coerce"
     )
 
-    return data, forecast, evaluasi
+    # ----------------------------
+    # EVALUASI
+    # ----------------------------
 
-
-# ============================================================
-# LOAD DATA
-# ============================================================
-
-try:
-
-    data, forecast, evaluasi = load_data()
-
-except Exception as e:
-
-    st.error(
-        "Terjadi kesalahan saat membaca file data."
+    evaluasi = pd.read_excel(
+        FILE_EVALUASI,
+        engine="openpyxl"
     )
 
-    st.code(str(e))
-
-    st.stop()
-
-
-# ============================================================
-# MENU SIDEBAR
-# ============================================================
-
-st.sidebar.title("Menu Dashboard")
-
-pilihan = st.sidebar.radio(
-    "Pilih tampilan:",
-    [
-        "Monitoring Data",
-        "Forecasting 6 Jam",
-        "Evaluasi Model",
-        "Komentator AI"
-    ]
-)
-
-
-# ============================================================
-# MENU 1
-# MONITORING DATA
-# ============================================================
-
-if pilihan == "Monitoring Data":
-
-    st.header("📡 Monitoring Data Sensor")
-
-    st.write(
-        "Data monitoring sensor suhu dan kelembaban "
-        "yang telah melalui proses preprocessing dan agregasi per jam."
-    )
-
-    # --------------------------------------------------------
-    # DATA TERAKHIR
-    # --------------------------------------------------------
-
-    data_terakhir = data.iloc[-1]
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.metric(
-            "Suhu Terakhir",
-            f"{data_terakhir['suhu']:.2f} °C"
-        )
-
-    with col2:
-
-        st.metric(
-            "Kelembaban Terakhir",
-            f"{data_terakhir['kelembaban']:.2f} %"
-        )
-
-    with col3:
-
-        st.metric(
-            "Waktu Data",
-            str(data_terakhir["timestamp"])
-        )
-
-
-    # --------------------------------------------------------
-    # GRAFIK SUHU
-    # --------------------------------------------------------
-
-    st.subheader("🌡️ Perubahan Suhu per Jam")
-
-    fig_suhu = go.Figure()
-
-    fig_suhu.add_trace(
-        go.Scatter(
-            x=data["timestamp"],
-            y=data["suhu"],
-            mode="lines+markers",
-            name="Suhu"
-        )
-    )
-
-    fig_suhu.update_layout(
-        xaxis_title="Waktu",
-        yaxis_title="Suhu (°C)",
-        hovermode="x unified"
-    )
-
-    st.plotly_chart(
-        fig_suhu,
-        use_container_width=True
-    )
-
-
-    # --------------------------------------------------------
-    # GRAFIK KELEMBABAN
-    # --------------------------------------------------------
-
-    st.subheader("💧 Perubahan Kelembaban per Jam")
-
-    fig_kelembaban = go.Figure()
-
-    fig_kelembaban.add_trace(
-        go.Scatter(
-            x=data["timestamp"],
-            y=data["kelembaban"],
-            mode="lines+markers",
-            name="Kelembaban"
-        )
-    )
-
-    fig_kelembaban.update_layout(
-        xaxis_title="Waktu",
-        yaxis_title="Kelembaban (%)",
-        hovermode="x unified"
-    )
-
-    st.plotly_chart(
-        fig_kelembaban,
-        use_container_width=True
-    )
-
-
-    # --------------------------------------------------------
-    # TABEL DATA
-    # --------------------------------------------------------
-
-    st.subheader("📋 Data Monitoring")
-
-    st.dataframe(
+    return (
         data,
-        use_container_width=True
+        forecast,
+        evaluasi
     )
-
 
 # ============================================================
 # MENU 2
@@ -236,14 +228,9 @@ elif pilihan == "Forecasting 6 Jam":
     st.header("🔮 Forecasting 6 Jam ke Depan")
 
     st.write(
-        "Peramalan dilakukan untuk 6 periode atau 6 jam ke depan "
-        "menggunakan model ARIMA."
+        "Peramalan dilakukan menggunakan model ARIMA "
+        "berdasarkan data historis sensor."
     )
-
-
-    # --------------------------------------------------------
-    # TABEL FORECASTING
-    # --------------------------------------------------------
 
     st.subheader("📋 Hasil Forecasting")
 
@@ -252,122 +239,180 @@ elif pilihan == "Forecasting 6 Jam":
         use_container_width=True
     )
 
-
-    # --------------------------------------------------------
-    # GRAFIK FORECASTING SUHU
-    # --------------------------------------------------------
+    # ========================================================
+    # GRAFIK SUHU
+    # ========================================================
 
     st.subheader("🌡️ Forecasting Suhu")
 
-    fig_suhu_forecast = go.Figure()
+    fig = go.Figure()
 
-    fig_suhu_forecast.add_trace(
+    fig.add_trace(
         go.Scatter(
             x=data["timestamp"],
             y=data["suhu"],
-            mode="lines",
-            name="Suhu Aktual"
+            mode="lines+markers",
+            name="Data Aktual"
         )
     )
 
-    fig_suhu_forecast.add_trace(
+    fig.add_trace(
         go.Scatter(
             x=forecast["timestamp"],
             y=forecast["prediksi_suhu"],
             mode="lines+markers",
-            name="Forecast Suhu"
+            name="Forecast"
         )
     )
 
-    fig_suhu_forecast.add_trace(
-        go.Scatter(
-            x=list(forecast["timestamp"]) +
-              list(forecast["timestamp"][::-1]),
+    if (
+        "batas_bawah_suhu" in forecast.columns
+        and
+        "batas_atas_suhu" in forecast.columns
+    ):
 
-            y=list(forecast["batas_atas_suhu"]) +
-              list(forecast["batas_bawah_suhu"][::-1]),
+        fig.add_trace(
 
-            fill="toself",
+            go.Scatter(
 
-            fillcolor="rgba(100, 100, 200, 0.2)",
+                x=list(forecast["timestamp"])
+                +
+                list(forecast["timestamp"][::-1]),
 
-            line=dict(
-                color="rgba(255,255,255,0)"
-            ),
+                y=list(forecast["batas_atas_suhu"])
+                +
+                list(forecast["batas_bawah_suhu"][::-1]),
 
-            name="Interval Kepercayaan"
+                fill="toself",
+
+                fillcolor="rgba(0,100,255,0.2)",
+
+                line=dict(
+                    color="rgba(255,255,255,0)"
+                ),
+
+                hoverinfo="skip",
+
+                showlegend=True,
+
+                name="Interval Kepercayaan"
+
+            )
+
         )
-    )
 
-    fig_suhu_forecast.update_layout(
+    fig.update_layout(
+
         xaxis_title="Waktu",
+
         yaxis_title="Suhu (°C)",
+
         hovermode="x unified"
+
     )
 
     st.plotly_chart(
-        fig_suhu_forecast,
+        fig,
         use_container_width=True
     )
 
-
-    # --------------------------------------------------------
-    # GRAFIK FORECASTING KELEMBABAN
-    # --------------------------------------------------------
+    # ========================================================
+    # GRAFIK KELEMBABAN
+    # ========================================================
 
     st.subheader("💧 Forecasting Kelembaban")
 
-    fig_kelembaban_forecast = go.Figure()
+    fig2 = go.Figure()
 
-    fig_kelembaban_forecast.add_trace(
+    fig2.add_trace(
+
         go.Scatter(
+
             x=data["timestamp"],
+
             y=data["kelembaban"],
-            mode="lines",
-            name="Kelembaban Aktual"
-        )
-    )
 
-    fig_kelembaban_forecast.add_trace(
-        go.Scatter(
-            x=forecast["timestamp"],
-            y=forecast["prediksi_kelembaban"],
             mode="lines+markers",
-            name="Forecast Kelembaban"
+
+            name="Data Aktual"
+
         )
+
     )
 
-    fig_kelembaban_forecast.add_trace(
+    fig2.add_trace(
+
         go.Scatter(
-            x=list(forecast["timestamp"]) +
-              list(forecast["timestamp"][::-1]),
 
-            y=list(forecast["batas_atas_kelembaban"]) +
-              list(forecast["batas_bawah_kelembaban"][::-1]),
+            x=forecast["timestamp"],
 
-            fill="toself",
+            y=forecast["prediksi_kelembaban"],
 
-            fillcolor="rgba(100, 100, 200, 0.2)",
+            mode="lines+markers",
 
-            line=dict(
-                color="rgba(255,255,255,0)"
-            ),
+            name="Forecast"
 
-            name="Interval Kepercayaan"
         )
+
     )
 
-    fig_kelembaban_forecast.update_layout(
+    if (
+
+        "batas_bawah_kelembaban" in forecast.columns
+
+        and
+
+        "batas_atas_kelembaban" in forecast.columns
+
+    ):
+
+        fig2.add_trace(
+
+            go.Scatter(
+
+                x=list(forecast["timestamp"])
+                +
+                list(forecast["timestamp"][::-1]),
+
+                y=list(forecast["batas_atas_kelembaban"])
+                +
+                list(forecast["batas_bawah_kelembaban"][::-1]),
+
+                fill="toself",
+
+                fillcolor="rgba(0,180,255,0.2)",
+
+                line=dict(
+                    color="rgba(255,255,255,0)"
+                ),
+
+                hoverinfo="skip",
+
+                showlegend=True,
+
+                name="Interval Kepercayaan"
+
+            )
+
+        )
+
+    fig2.update_layout(
+
         xaxis_title="Waktu",
+
         yaxis_title="Kelembaban (%)",
+
         hovermode="x unified"
+
     )
 
     st.plotly_chart(
-        fig_kelembaban_forecast,
-        use_container_width=True
-    )
 
+        fig2,
+
+        use_container_width=True
+
+    )
 
 # ============================================================
 # MENU 3
@@ -382,11 +427,6 @@ elif pilihan == "Evaluasi Model":
         "Evaluasi dilakukan menggunakan MAE, RMSE, dan MAPE."
     )
 
-
-    # --------------------------------------------------------
-    # TABEL EVALUASI
-    # --------------------------------------------------------
-
     st.subheader("📋 Hasil Evaluasi")
 
     st.dataframe(
@@ -394,47 +434,97 @@ elif pilihan == "Evaluasi Model":
         use_container_width=True
     )
 
+    if len(evaluasi) == 0:
 
-    # --------------------------------------------------------
-    # METRIK MODEL
-    # --------------------------------------------------------
-
-    for i, row in evaluasi.iterrows():
-
-        st.subheader(
-            f"Model {row['variabel']}"
+        st.warning(
+            "Data evaluasi tidak ditemukan."
         )
 
-        col1, col2, col3, col4 = st.columns(4)
+    else:
 
-        with col1:
+        for _, row in evaluasi.iterrows():
 
-            st.metric(
-                "Model",
-                str(row["model"])
+            st.markdown("---")
+
+            st.subheader(
+                f"Variabel : {row['variabel']}"
             )
 
-        with col2:
+            col1, col2, col3, col4 = st.columns(4)
 
-            st.metric(
-                "MAE",
-                f"{row['MAE']:.4f}"
-            )
+            with col1:
 
-        with col3:
+                st.metric(
+                    "Model",
+                    str(row["model"])
+                )
 
-            st.metric(
-                "RMSE",
-                f"{row['RMSE']:.4f}"
-            )
+            with col2:
 
-        with col4:
+                st.metric(
+                    "MAE",
+                    f"{float(row['MAE']):.4f}"
+                )
 
-            st.metric(
-                "MAPE",
-                f"{row['MAPE']:.4f} %"
-            )
+            with col3:
 
+                st.metric(
+                    "RMSE",
+                    f"{float(row['RMSE']):.4f}"
+                )
+
+            with col4:
+
+                st.metric(
+                    "MAPE",
+                    f"{float(row['MAPE']):.4f} %"
+                )
+
+            if float(row["MAPE"]) < 10:
+
+                st.success(
+                    "Kategori Akurasi : Sangat Baik"
+                )
+
+            elif float(row["MAPE"]) < 20:
+
+                st.info(
+                    "Kategori Akurasi : Baik"
+                )
+
+            elif float(row["MAPE"]) < 50:
+
+                st.warning(
+                    "Kategori Akurasi : Cukup"
+                )
+
+            else:
+
+                st.error(
+                    "Kategori Akurasi : Buruk"
+                )
+
+    st.markdown("---")
+
+    st.subheader(
+        "Interpretasi Metrik"
+    )
+
+    st.markdown(
+        """
+**MAE (Mean Absolute Error)** menunjukkan rata-rata
+kesalahan absolut hasil prediksi terhadap data aktual.
+
+**RMSE (Root Mean Square Error)** memberikan penalti
+lebih besar terhadap kesalahan yang besar.
+
+**MAPE (Mean Absolute Percentage Error)** menunjukkan
+persentase rata-rata kesalahan prediksi.
+
+Semakin kecil nilai MAE, RMSE dan MAPE maka semakin
+baik performa model ARIMA.
+"""
+    )
 
 # ============================================================
 # MENU 4
@@ -446,176 +536,118 @@ elif pilihan == "Komentator AI":
     st.header("💬 Komentator AI")
 
     st.write(
-        "LLM digunakan sebagai komentator untuk memberikan analisis "
-        "dan rekomendasi berdasarkan data monitoring dan hasil "
-        "forecasting 6 jam ke depan."
+        "Analisis otomatis menggunakan Large Language Model (LLM) Groq "
+        "berdasarkan data monitoring dan hasil forecasting."
     )
 
-
-    # --------------------------------------------------------
-    # DATA SENSOR TERAKHIR
-    # --------------------------------------------------------
+    # ========================================================
+    # DATA TERAKHIR
+    # ========================================================
 
     data_terakhir = data.iloc[-1]
 
-    suhu_terakhir = float(
-        data_terakhir["suhu"]
-    )
+    suhu_terakhir = float(data_terakhir["suhu"])
+    kelembaban_terakhir = float(data_terakhir["kelembaban"])
+    waktu_terakhir = str(data_terakhir["timestamp"])
 
-    kelembaban_terakhir = float(
-        data_terakhir["kelembaban"]
-    )
+    st.subheader("📊 Kondisi Sensor Terakhir")
 
-    waktu_terakhir = str(
-        data_terakhir["timestamp"]
-    )
+    c1, c2, c3 = st.columns(3)
 
-
-    # --------------------------------------------------------
-    # FORECAST 6 JAM
-    # --------------------------------------------------------
-
-    prediksi_suhu = forecast[
-        "prediksi_suhu"
-    ].tolist()
-
-    prediksi_kelembaban = forecast[
-        "prediksi_kelembaban"
-    ].tolist()
-
-
-    # --------------------------------------------------------
-    # KONDISI SENSOR TERAKHIR
-    # --------------------------------------------------------
-
-    st.subheader(
-        "📊 Kondisi Sensor Terakhir"
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
+    with c1:
         st.metric(
             "Suhu",
             f"{suhu_terakhir:.2f} °C"
         )
 
-    with col2:
-
+    with c2:
         st.metric(
             "Kelembaban",
             f"{kelembaban_terakhir:.2f} %"
         )
 
+    with c3:
+        st.metric(
+            "Waktu",
+            waktu_terakhir
+        )
 
-    # --------------------------------------------------------
-    # HASIL FORECASTING
-    # --------------------------------------------------------
+    st.markdown("---")
 
-    st.subheader(
-        "🔮 Hasil Forecasting 6 Jam"
-    )
+    st.subheader("🔮 Forecasting 6 Jam")
 
     st.dataframe(
         forecast,
         use_container_width=True
     )
 
+    prediksi_suhu = forecast["prediksi_suhu"].tolist()
+    prediksi_kelembaban = forecast["prediksi_kelembaban"].tolist()
 
-    # --------------------------------------------------------
-    # TOMBOL ANALISIS AI
-    # --------------------------------------------------------
+    st.markdown("---")
 
-    if st.button(
-        "🔍 Analisis Data dengan AI"
-    ):
+    if st.button("🔍 Analisis Data dengan AI"):
 
-        # ----------------------------------------------------
-        # MENGAMBIL API KEY GROQ
-        # ----------------------------------------------------
-
-        api_key = os.getenv(
-            "GROQ_API_KEY"
-        )
-
-
-        # ----------------------------------------------------
-        # CEK API KEY
-        # ----------------------------------------------------
+        api_key = os.getenv("GROQ_API_KEY")
 
         if not api_key:
 
             st.error(
-                "GROQ_API_KEY belum ditemukan. "
-                "Pastikan API Key Groq sudah disimpan "
-                "sebagai Environment Variable."
+                "Environment Variable GROQ_API_KEY belum ditemukan."
             )
 
             st.stop()
 
+        try:
 
-        # ----------------------------------------------------
-        # MEMBUAT CLIENT GROQ
-        # ----------------------------------------------------
+            client = Groq(
+                api_key=api_key
+            )
 
-        client = Groq(
-            api_key=api_key
-        )
-
-
-        # ----------------------------------------------------
-        # MEMBUAT PROMPT
-        # ----------------------------------------------------
-
-        prompt = f"""
-Anda adalah komentator AI untuk sistem monitoring sensor IoT.
+            prompt = f"""
+Anda adalah analis IoT.
 
 Analisis data berikut.
 
-DATA SENSOR TERAKHIR:
-- Waktu: {waktu_terakhir}
-- Suhu terakhir: {suhu_terakhir:.2f} °C
-- Kelembaban terakhir: {kelembaban_terakhir:.2f} %
+DATA TERAKHIR
 
-HASIL FORECASTING 6 JAM KE DEPAN:
+Waktu :
+{waktu_terakhir}
 
-Prediksi suhu:
+Suhu :
+{suhu_terakhir:.2f} °C
+
+Kelembaban :
+{kelembaban_terakhir:.2f} %
+
+HASIL FORECASTING SUHU
+
 {prediksi_suhu}
 
-Prediksi kelembaban:
+HASIL FORECASTING KELEMBABAN
+
 {prediksi_kelembaban}
 
-Berikan analisis singkat dalam bahasa Indonesia dengan struktur:
+Berikan jawaban dalam Bahasa Indonesia.
 
-1. Kondisi terkini
-Jelaskan kondisi suhu dan kelembaban terakhir.
+Gunakan format:
 
-2. Prediksi 6 jam ke depan
-Jelaskan kecenderungan perubahan suhu dan kelembaban berdasarkan hasil forecasting.
+## Kondisi Saat Ini
 
-3. Rekomendasi
-Berikan rekomendasi yang relevan berdasarkan kondisi sensor dan hasil prediksi.
+## Prediksi
 
-4. Insight
-Berikan kesimpulan singkat mengenai pola atau kecenderungan data.
+## Rekomendasi
 
-Jangan membuat informasi yang tidak terdapat dalam data.
-Gunakan bahasa yang mudah dipahami.
+## Kesimpulan
+
+Jangan membuat data yang tidak ada.
 """
 
+            with st.spinner(
+                "AI sedang menganalisis..."
+            ):
 
-        # ----------------------------------------------------
-        # MEMANGGIL LLM GROQ
-        # ----------------------------------------------------
-
-        with st.spinner(
-            "AI sedang menganalisis data..."
-        ):
-
-            try:
-
-                completion = client.chat.completions.create(
+                response = client.chat.completions.create(
 
                     model="openai/gpt-oss-120b",
 
@@ -624,9 +656,7 @@ Gunakan bahasa yang mudah dipahami.
                         {
                             "role": "system",
                             "content": (
-                                "Anda adalah komentator AI "
-                                "untuk sistem monitoring "
-                                "sensor IoT."
+                                "Anda adalah analis data IoT."
                             )
                         },
 
@@ -637,55 +667,40 @@ Gunakan bahasa yang mudah dipahami.
 
                     ],
 
-                    temperature=1,
+                    temperature=0.7,
 
-                    max_completion_tokens=2048,
+                    max_completion_tokens=1024,
 
                     top_p=1,
-
-                    reasoning_effort="medium",
 
                     stream=False
 
                 )
 
-
-                # ------------------------------------------------
-                # MENGAMBIL HASIL DARI GROQ
-                # ------------------------------------------------
-
                 hasil_ai = (
-                    completion
+                    response
                     .choices[0]
                     .message
                     .content
                 )
 
+            st.success(
+                "Analisis berhasil dibuat."
+            )
 
-                # ------------------------------------------------
-                # MENAMPILKAN HASIL AI
-                # ------------------------------------------------
+            st.markdown(
+                "## 🤖 Analisis dan Rekomendasi AI"
+            )
 
-                st.success(
-                    "Analisis AI berhasil dibuat."
-                )
+            st.markdown(
+                hasil_ai
+            )
 
-                st.markdown(
-                    "### 🤖 Analisis dan Rekomendasi AI"
-                )
+        except Exception as e:
 
-                st.write(
-                    hasil_ai
-                )
+            st.error(
+                "Gagal menghubungkan ke Groq API."
+            )
 
+            st.code(str(e))
 
-            except Exception as e:
-
-                st.error(
-                    "Terjadi kesalahan saat "
-                    "menghubungkan dengan Groq API."
-                )
-
-                st.code(
-                    str(e)
-                )
