@@ -59,47 +59,7 @@ FILE_EVALUASI = os.path.join(
 @st.cache_data
 def load_data():
 
-    data = pd.read_excel(FILE_DATA, engine="openpyxl")
-
-    # ====================================================
-# MEMBERSIHKAN NAMA KOLOM
-# ====================================================
-
-data.columns = data.columns.str.strip().str.lower()
-
-# ====================================================
-# UBAH TIPE DATA
-# ====================================================
-
-data["timestamp"] = pd.to_datetime(data["timestamp"])
-data["value"] = pd.to_numeric(data["value"])
-
-# ====================================================
-# AMBIL NAMA SENSOR
-# ====================================================
-
-data["sensor"] = (
-    data["topic"]
-    .str.lower()
-    .str.split("/")
-    .str[-1]
-)
-
-# ====================================================
-# UBAH MENJADI FORMAT DASHBOARD
-# ====================================================
-
-data = (
-    data.pivot_table(
-        index="timestamp",
-        columns="sensor",
-        values="value",
-        aggfunc="mean"
-    )
-    .reset_index()
-)
-
-data.columns.name = None
+    data = pd.read_excel(FILE_DATA)
 
     forecast = pd.read_excel(FILE_FORECAST)
 
