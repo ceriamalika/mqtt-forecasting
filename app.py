@@ -59,7 +59,7 @@ FILE_EVALUASI = os.path.join(
 @st.cache_data
 def load_data():
 
-    data = pd.read_excel(FILE_DATA)
+    data = pd.read_csv(FILE_DATA)
 
     forecast = pd.read_excel(FILE_FORECAST)
 
