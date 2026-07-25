@@ -61,6 +61,12 @@ def load_data():
 
     data = pd.read_excel(FILE_DATA)
 
+# Bersihkan nama kolom
+data.columns = data.columns.str.strip().str.lower()
+
+# Lihat nama kolom
+st.write(data.columns)
+
     forecast = pd.read_excel(FILE_FORECAST)
 
     evaluasi = pd.read_excel(FILE_EVALUASI)
