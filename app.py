@@ -41,6 +41,12 @@ FILE_DATA = os.path.join(
     "sensor_data.xlsx"
 )
 
+FILE_DATA = os.path.join(
+    BASE_DIR,
+    "sensor_data_forecasting.xlsx"
+)
+
+
 FILE_FORECAST = os.path.join(
     BASE_DIR,
     "hasil_forecasting_6_jam.xlsx"
