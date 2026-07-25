@@ -34,20 +34,20 @@ st.write(
 # LOKASI FILE
 # ============================================================
 
-DATA_DIR = r"C:\Users\Asus\Tugas_MQTT_Forecasting\data"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 FILE_DATA = os.path.join(
-    DATA_DIR,
-    "sensor_data_forecasting.xlsx"
+    BASE_DIR,
+    "sensor_data.csv"
 )
 
 FILE_FORECAST = os.path.join(
-    DATA_DIR,
+    BASE_DIR,
     "hasil_forecasting_6_jam.xlsx"
 )
 
 FILE_EVALUASI = os.path.join(
-    DATA_DIR,
+    BASE_DIR,
     "hasil_evaluasi_model.xlsx"
 )
 
