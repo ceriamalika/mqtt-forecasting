@@ -61,6 +61,22 @@ def load_data():
 
     data = pd.read_excel(FILE_DATA)
 
+    sensor_forecasat = pd.read_excel(FILE_DATA, engine="openpyxl")
+    sensor_forecast = pd.read_excel(
+    FILE_SENSOR_FORECAST,
+    engine="openpyxl"
+    )
+    
+    sensor_forecast.columns = (
+    sensor_forecast.columns
+    .str.strip()
+    .str.lower()
+    )
+    
+    sensor_forecast["timestamp"] = pd.to_datetime(
+    sensor_forecast["timestamp"]
+    )
+
     forecast = pd.read_excel(FILE_FORECAST)
 
     evaluasi = pd.read_excel(FILE_EVALUASI)
@@ -73,7 +89,7 @@ def load_data():
         forecast["timestamp"]
     )
 
-    return data, forecast, evaluasi
+    return data, sensor_forecast, forecast, evaluasi
 
 
 # ============================================================
@@ -82,7 +98,7 @@ def load_data():
 
 try:
 
-    data, forecast, evaluasi = load_data()
+    data, sensor_forecast, forecast, evaluasi = load_data()
 
 except Exception as e:
 
@@ -130,7 +146,7 @@ if pilihan == "Monitoring Data":
     # DATA TERAKHIR
     # --------------------------------------------------------
 
-    data_terakhir = data.iloc[-1]
+    data_terakhir = sensor_forecast.iloc[-1]
 
     col1, col2, col3 = st.columns(3)
 
@@ -166,8 +182,8 @@ if pilihan == "Monitoring Data":
 
     fig_suhu.add_trace(
         go.Scatter(
-            x=data["timestamp"],
-            y=data["suhu"],
+            x=sensor_forecast["timestamp"],
+            y=sensor_forecast["suhu"],
             mode="lines+markers",
             name="Suhu"
         )
@@ -195,8 +211,8 @@ if pilihan == "Monitoring Data":
 
     fig_kelembaban.add_trace(
         go.Scatter(
-            x=data["timestamp"],
-            y=data["kelembaban"],
+            x=sensor_forecast["timestamp"],
+            y=sensor_forecast["kelembaban"],
             mode="lines+markers",
             name="Kelembaban"
         )
@@ -221,7 +237,7 @@ if pilihan == "Monitoring Data":
     st.subheader("📋 Data Monitoring")
 
     st.dataframe(
-        data,
+        sensor_forecast,
         use_container_width=True
     )
 
@@ -263,8 +279,8 @@ elif pilihan == "Forecasting 6 Jam":
 
     fig_suhu_forecast.add_trace(
         go.Scatter(
-            x=data["timestamp"],
-            y=data["suhu"],
+            x=sensor_forecast["timestamp"],
+            y=sensor_forecast["suhu"],
             mode="lines",
             name="Suhu Aktual"
         )
@@ -321,8 +337,8 @@ elif pilihan == "Forecasting 6 Jam":
 
     fig_kelembaban_forecast.add_trace(
         go.Scatter(
-            x=data["timestamp"],
-            y=data["kelembaban"],
+            x=sensor_forecast["timestamp"],
+            y=sensor_forecast["kelembaban"],
             mode="lines",
             name="Kelembaban Aktual"
         )
@@ -456,7 +472,7 @@ elif pilihan == "Komentator AI":
     # DATA SENSOR TERAKHIR
     # --------------------------------------------------------
 
-    data_terakhir = data.iloc[-1]
+    data_terakhir = sensor_forecast.iloc[-1]
 
     suhu_terakhir = float(
         data_terakhir["suhu"]
