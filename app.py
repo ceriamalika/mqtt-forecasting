@@ -554,21 +554,13 @@ elif pilihan == "Komentator AI":
         # MENGAMBIL API KEY GROQ
         # ----------------------------------------------------
 
-        api_key = os.getenv(
-            "GROQ_API_KEY"
-        )
-
-
-        # ----------------------------------------------------
-        # CEK API KEY
-        # ----------------------------------------------------
-
-        if not api_key:
+        try:
+            api_key = st.secrets["GROQ_API_KEY"]
+        except KeyError:
 
             st.error(
-                "GROQ_API_KEY belum ditemukan. "
-                "Pastikan API Key Groq sudah disimpan "
-                "sebagai Environment Variable."
+                "GROQ_API_KEY belum disimpan pada Streamlit Secrets."
+    
             )
 
             st.stop()
